@@ -1,0 +1,3 @@
+https://github.com/lcylmhlcy/CartoonGAN-Pytorch - can load original pretrained models, used for baseline
+https://github.com/znxlwm/pytorch-CartoonGAN - includes code for training, OG GAN to be modified, also useful for comparing datasets
+
