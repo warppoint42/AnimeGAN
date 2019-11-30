@@ -9,3 +9,4 @@ data/videos/tgts/*
 data/videos/src_scenes/*
 data/videos/tgts/*
 data/videos/tgts_scenes/*
+__pycache__
