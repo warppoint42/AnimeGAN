@@ -98,7 +98,7 @@ def split_by_seconds(filename, split_length, vcodec="copy", acodec="copy",
 # and Extract Frames 
   
 # Function to extract frames 
-def FrameCapture(inpath, outfolder, div = 24, startFrame = 0, clearoutfolder = True): 
+def FrameCapture(inpath, outfolder, prefix = "", div = 24, startFrame = 0, clearoutfolder = True): 
       
     if clearoutfolder:
         cleardir(outfolder)
@@ -127,7 +127,7 @@ def FrameCapture(inpath, outfolder, div = 24, startFrame = 0, clearoutfolder = T
         if not success:
             break
         # Saves the frames with frame-count 
-        cv2.imwrite((outfolder + "/" + "frame%d.jpg") % count, image) 
+        cv2.imwrite((outfolder + "/" + prefix + "frame%d.jpg") % count, image) 
   
         count += 1
         frame += 1
