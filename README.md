@@ -5,7 +5,10 @@ Autumn 2019 Stanford CS236 project. An implementation of a GAN for video style t
 Before running the dataset processor or the baseline generator, ffmpeg must be installed, as well as the requirements from requirements.txt.
 
 ### Folder structure
-The following shows basic folder structure.
+The following shows basic folder structure, which should be created before running the dataset processor.
+Place all target dataset videos grouped by dataset in folders in /data/videos/tgts/.
+Place all videos (avi files) from Hollywood2 in /data/videos/src.
+
 ```
 ├── data (not included in this repo)
 │   ├── AnimeGAN_data 
@@ -33,11 +36,16 @@ The following shows basic folder structure.
 
 Preprocessing:
 1. Splice all videos into scenes using PySceneDetect. 
+    1. For videos from Hollywood2, cut out the first 15 seconds to eliminate watermarks.
+    1. Remove credits scenes from anime sets by hand.
 1. Sample frames from all subscenes at 24 fps.
+    1. Only retain the first 24 (or other desired number of frames) from each Hollywood2 subscene to reduce dataset size.
+1. Letterbox all frames to a 16:9 ratio and resize to 480:270.
     1. For anime training data frames, create paired frames using the following process:
     1. detect edge pixels using a standard Canny edge detector
     1. dilate the edge regions
-    1. apply a Gaussian smoothing in the dilated edge regions
-1. Somehow crop-resample all frames to a 16:9 ratio with standardized resolution
+    1. apply a Gaussian smoothing in the dilated edge regions.
+1. (PyTorch DataLoader) Combine chosen consecutive 24 frames into 4d arrays (channel, depth, height, width). Sample every 24 frames in a subscene, or more frequently to augment data.
+
     
     
