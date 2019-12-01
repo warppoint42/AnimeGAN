@@ -9,6 +9,10 @@ The following shows basic folder structure.
 ```
 ├── data (not included in this repo)
 │   ├── AnimeGAN_data 
+│   │   ├── src_processed # subset of src_data, resized and limited to two seconds each
+│   │   │   ├── train 
+│   │   │   └── test 
+│   │   ├── paired_targets # target_datasets but resized and with edge_promoting
 │   │   ├── src_data # folders containing scenes split by frames 
 │   │   └── target_datasets # one folder per target, each containing folders containing scenes split by frames
 │   ├── img_datasets # 
