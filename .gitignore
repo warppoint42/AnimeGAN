@@ -9,4 +9,6 @@ data/videos/tgts/*
 data/videos/src_scenes/*
 data/videos/tgts/*
 data/videos/tgts_scenes/*/*
+data/img_datasets/src_img_CartoonGAN/*
+data/img_datasets/target_img_datasets_CartoonGAN/*
 __pycache__
