@@ -1,6 +1,10 @@
 .DS_Store
+data
 data/AnimeGAN_data/src_data/*
-data/AnimeGAN_data/target_datasets/*
+data/AnimeGAN_data/target_datasets/*/*
+data/AnimeGAN_data/paired_targets/*/*
+data/AnimeGAN_data/src_processed/train/*
+data/AnimeGAN_data/src_processed/test/*
 data/img_datasets/src_img/*
 data/img_datasets/target_img_datasets/*
 data/videos/other/*
