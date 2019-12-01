@@ -37,7 +37,7 @@ Place all videos (avi files) from Hollywood2 in /data/videos/src.
 Preprocessing:
 1. Splice all videos into scenes using PySceneDetect. 
     1. For videos from Hollywood2, cut out the first 15 seconds to eliminate watermarks.
-    1. Remove credits scenes from anime sets by hand.
+    1. Remove credits scenes (and possibly intros and others) from anime sets by hand.
 1. Sample frames from all subscenes at 24 fps.
     1. Only retain the first 24 (or other desired number of frames) from each Hollywood2 subscene to reduce dataset size.
 1. Letterbox all frames to a 16:9 ratio and resize to 480:270.
