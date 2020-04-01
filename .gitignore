@@ -1,4 +1,6 @@
 .DS_Store
+.ipynb_checkpoints/
+VGG19/*
 data
 data/AnimeGAN_data/src_data/*
 data/AnimeGAN_data/target_datasets/*/*

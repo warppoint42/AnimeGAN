@@ -8,6 +8,42 @@ import cv2
 import shutil
 from tqdm import tqdm
 import numpy as np
+import itertools, imageio, torch, random
+import matplotlib.pyplot as plt
+import torch.nn as nn
+from torchvision import datasets
+from scipy.misc import imresize
+from torch.autograd import Variable
+import VideosDataset
+
+#load frame video datasets
+def data_load(path, subfolder, transform, batch_size, shuffle=False, drop_last=True):
+    dset = VideosDataset(path, batch_size, 3, None)
+    return torch.utils.data.DataLoader(dset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
+
+#from pytorch-CartoonGAN, print network structure
+def print_network(net):
+    num_params = 0
+    for param in net.parameters():
+        num_params += param.numel()
+    print(net)
+    print('Total number of parameters: %d' % num_params)
+
+#TODO - add 3D    
+def initialize_weights(net):
+    for m in net.modules():
+        if isinstance(m, nn.Conv2d):
+            m.weight.data.normal_(0, 0.02)
+            m.bias.data.zero_()
+        elif isinstance(m, nn.ConvTranspose2d):
+            m.weight.data.normal_(0, 0.02)
+            m.bias.data.zero_()
+        elif isinstance(m, nn.Linear):
+            m.weight.data.normal_(0, 0.02)
+            m.bias.data.zero_()
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()
 
 #get FPS of video
 def getFps(vidname):    
@@ -170,5 +206,36 @@ def edge_promoting_no_resize_inplace(root, numframes):
 
         cv2.imwrite(os.path.join(root, str(n) + '.png'), result)
         os.system("rm " + os.path.join(root, f))
+        n += 1
+
+#from pytorch-CartoonGAN
+def edge_promoting(root, save):
+    file_list = os.listdir(root)
+    if not os.path.isdir(save):
+        os.makedirs(save)
+    kernel_size = 5
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    gauss = cv2.getGaussianKernel(kernel_size, 0)
+    gauss = gauss * gauss.transpose(1, 0)
+    n = 1
+    for f in tqdm(file_list):
+        rgb_img = cv2.imread(os.path.join(root, f))
+        gray_img = cv2.imread(os.path.join(root, f), 0)
+        rgb_img = cv2.resize(rgb_img, (256, 256))
+        pad_img = np.pad(rgb_img, ((2,2), (2,2), (0,0)), mode='reflect')
+        gray_img = cv2.resize(gray_img, (256, 256))
+        edges = cv2.Canny(gray_img, 100, 200)
+        dilation = cv2.dilate(edges, kernel)
+
+        gauss_img = np.copy(rgb_img)
+        idx = np.where(dilation != 0)
+        for i in range(np.sum(dilation != 0)):
+            gauss_img[idx[0][i], idx[1][i], 0] = np.sum(np.multiply(pad_img[idx[0][i]:idx[0][i] + kernel_size, idx[1][i]:idx[1][i] + kernel_size, 0], gauss))
+            gauss_img[idx[0][i], idx[1][i], 1] = np.sum(np.multiply(pad_img[idx[0][i]:idx[0][i] + kernel_size, idx[1][i]:idx[1][i] + kernel_size, 1], gauss))
+            gauss_img[idx[0][i], idx[1][i], 2] = np.sum(np.multiply(pad_img[idx[0][i]:idx[0][i] + kernel_size, idx[1][i]:idx[1][i] + kernel_size, 2], gauss))
+
+        result = np.concatenate((rgb_img, gauss_img), 1)
+
+        cv2.imwrite(os.path.join(save, str(n) + '.png'), result)
         n += 1
     
