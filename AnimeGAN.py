@@ -1,4 +1,5 @@
-import os, time, pickle, argparse, networks, utils
+import os, time, pickle, argparse, utils
+import AG_networks as networks
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,7 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--name', required=False, default='project_name',  help='')
 parser.add_argument('--src_data', required=False, default='src_data_path',  help='sec data path')
 parser.add_argument('--tgt_data', required=False, default='tgt_data_path',  help='tgt data path')
-parser.add_argument('--vgg_model', required=False, default='pre_trained_VGG19_model_path/vgg19.pth', help='pre-trained VGG19 model path')
+parser.add_argument('--vgg_model', required=False, default='VGG19/vgg19-dcbb9e9d.pth', help='pre-trained VGG19 model path')
 parser.add_argument('--in_ngc', type=int, default=3, help='input channel for generator')
 parser.add_argument('--out_ngc', type=int, default=3, help='output channel for generator')
 parser.add_argument('--in_ndc', type=int, default=3, help='input channel for discriminator')
@@ -22,13 +23,16 @@ parser.add_argument('--nb', type=int, default=8, help='the number of resnet bloc
 parser.add_argument('--input_size', type=int, default=256, help='input size')
 parser.add_argument('--train_epoch', type=int, default=100)
 parser.add_argument('--pre_train_epoch', type=int, default=10)
-parser.add_argument('--lrD', type=float, default=0.0002, help='learning rate, default=0.0002')
-parser.add_argument('--lrG', type=float, default=0.0002, help='learning rate, default=0.0002')
-parser.add_argument('--con_lambda', type=float, default=10, help='lambda for content loss')
+parser.add_argument('--lrG_init', type=float, default=1e-4, help='learning rate for generator in initialize') #0.0001 in, 0.0002 in lua-CGAN
+parser.add_argument('--lrD', type=float, default=0.00001, help='learning rate for generator') #0.00001 in, 0.00001 in lua-CGAN
+parser.add_argument('--lrG', type=float, default=0.00001, help='learning rate for discriminator') #0.00001 in py-CGAN, 0.00001 in lua-CGAN
+parser.add_argument('--con_weight', type=float, default=10, help='lambda for content loss')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for Adam optimizer')
 parser.add_argument('--beta2', type=float, default=0.999, help='beta2 for Adam optimizer')
 parser.add_argument('--latest_generator_model', required=False, default='', help='the latest trained model path')
 parser.add_argument('--latest_discriminator_model', required=False, default='', help='the latest trained model path')
+parser.add_argument('--latest_epoch', type=int, required=False, default='-1', help='the last epoch for resuming')
+parser.add_argument('--lr_batchsize_adjust', type=utils.str2bool, default=False, help='Multiply learning rates by sqrt(batch_size/4)')
 args = parser.parse_args()
 
 print('------------ Options -------------')
@@ -104,10 +108,21 @@ BCE_loss = nn.BCELoss().to(device)
 L1_loss = nn.L1Loss().to(device)
 
 # Adam optimizer
-G_optimizer = optim.Adam(G.parameters(), lr=args.lrG, betas=(args.beta1, args.beta2))
-D_optimizer = optim.Adam(D.parameters(), lr=args.lrD, betas=(args.beta1, args.beta2))
-G_scheduler = optim.lr_scheduler.MultiStepLR(optimizer=G_optimizer, milestones=[args.train_epoch // 2, args.train_epoch // 4 * 3], gamma=0.1)
-D_scheduler = optim.lr_scheduler.MultiStepLR(optimizer=D_optimizer, milestones=[args.train_epoch // 2, args.train_epoch // 4 * 3], gamma=0.1)
+# Adam optimizer
+if args.lr_batchsize_adjust:
+    init_G_optimizer = optim.Adam(G.parameters(), lr=args.lrG_init * math.sqrt(args.batch_size/4.0), betas=(args.beta1, args.beta2))
+    G_optimizer = optim.Adam(G.parameters(), lr=args.lrG * math.sqrt(args.batch_size/4.0), betas=(args.beta1, args.beta2))
+    D_optimizer = optim.Adam(D.parameters(), lr=args.lrD * math.sqrt(args.batch_size/4.0), betas=(args.beta1, args.beta2))
+else:
+    init_G_optimizer = optim.Adam(G.parameters(), lr=args.lrG_init, betas=(args.beta1, args.beta2))
+    G_optimizer = optim.Adam(G.parameters(), lr=args.lrG, betas=(args.beta1, args.beta2))
+    D_optimizer = optim.Adam(D.parameters(), lr=args.lrD, betas=(args.beta1, args.beta2))
+
+init_G_scheduler = optim.lr_scheduler.LambdaLR(optimizer=init_G_optimizer, lr_lambda = lambda epoch: (1.0 - (epoch // args.pre_train_epoch)))
+G_scheduler = optim.lr_scheduler.LambdaLR(optimizer=G_optimizer, lr_lambda = lambda epoch: (1.0 - (epoch // args.train_epoch)), last_epoch = args.latest_epoch)
+D_scheduler = optim.lr_scheduler.LambdaLR(optimizer=D_optimizer, lr_lambda = lambda epoch: (1.0 - (epoch // args.train_epoch)), last_epoch = args.latest_epoch)
+# G_scheduler = optim.lr_scheduler.MultiStepLR(optimizer=G_optimizer, milestones=[args.train_epoch // 2, args.train_epoch // 4 * 3], gamma=0.1)
+# D_scheduler = optim.lr_scheduler.MultiStepLR(optimizer=D_optimizer, milestones=[args.train_epoch // 2, args.train_epoch // 4 * 3], gamma=0.1)
 
 pre_train_hist = {}
 pre_train_hist['Recon_loss'] = []
@@ -136,7 +151,7 @@ if args.latest_generator_model == '':
             pre_train_hist['Recon_loss'].append(Recon_loss.item())
 
             Recon_loss.backward()
-            G_optimizer.step()
+            init_G_optimizer.step()
 
         per_epoch_time = time.time() - epoch_start_time
         pre_train_hist['per_epoch_time'].append(per_epoch_time)
@@ -168,8 +183,27 @@ if args.latest_generator_model == '':
                 break
 else:
     print('Load the latest generator model, no need to pre-train')
+    with torch.no_grad():
+        G.eval()
+        for n, (x, _) in enumerate(train_loader_src):
+            x = x.to(device)
+            G_recon = G(x)
+            result = torch.cat((x[0], G_recon[0]), 2)
+            path = os.path.join(args.name + '_results', 'Reconstruction', args.name + '_verify_train_recon_' + str(n + 1) + '.png')
+            plt.imsave(path, (result.cpu().numpy().transpose(1, 2, 0) + 1) / 2)
+            if n == 4:
+                break
 
+        for n, (x, _) in enumerate(test_loader_src):
+            x = x.to(device)
+            G_recon = G(x)
+            result = torch.cat((x[0], G_recon[0]), 2)
+            path = os.path.join(args.name + '_results', 'Reconstruction', args.name + '_verify_test_recon_' + str(n + 1) + '.png')
+            plt.imsave(path, (result.cpu().numpy().transpose(1, 2, 0) + 1) / 2)
+            if n == 4:
+                break
 
+                
 train_hist = {}
 train_hist['Disc_loss'] = []
 train_hist['Gen_loss'] = []
@@ -188,6 +222,9 @@ for epoch in range(args.train_epoch):
     Disc_losses = []
     Gen_losses = []
     Con_losses = []
+    d_real_acc = []
+    d_fake_acc = []
+    d_edge_acc = []
     for (x, _), (y, _) in zip(train_loader_src, train_loader_tgt):
         e = y[:, :, :, args.input_size:]
         y = y[:, :, :, :args.input_size]
@@ -205,6 +242,11 @@ for epoch in range(args.train_epoch):
 
         D_edge = D(e)
         D_edge_loss = BCE_loss(D_edge, fake)
+        
+        
+        d_real_acc.append(torch.mean(D_real).item())
+        d_fake_acc.append(torch.mean(1.0-D_fake).item())
+        d_edge_acc.append(torch.mean(1.0-D_edge).item())
 
         Disc_loss = D_real_loss + D_fake_loss + D_edge_loss
         Disc_losses.append(Disc_loss.item())
@@ -222,7 +264,7 @@ for epoch in range(args.train_epoch):
 
         x_feature = VGG((x + 1) / 2)
         G_feature = VGG((G_ + 1) / 2)
-        Con_loss = args.con_lambda * L1_loss(G_feature, x_feature.detach())
+        Con_loss = args.con_weight * L1_loss(G_feature, x_feature.detach())
 
         Gen_loss = D_fake_loss + Con_loss
         Gen_losses.append(D_fake_loss.item())
@@ -239,6 +281,8 @@ for epoch in range(args.train_epoch):
     print(
     '[%d/%d] - time: %.2f, Disc loss: %.3f, Gen loss: %.3f, Con loss: %.3f' % ((epoch + 1), args.train_epoch, per_epoch_time, torch.mean(torch.FloatTensor(Disc_losses)),
         torch.mean(torch.FloatTensor(Gen_losses)), torch.mean(torch.FloatTensor(Con_losses))))
+    print("Disc real acc: %.3f, Disc fake acc: %.3f, Disc edge acc: %.3f" % 
+              (np.mean(d_real_acc), np.mean(d_fake_acc), np.mean(d_edge_acc)))
 
     if epoch % 2 == 1 or epoch == args.train_epoch - 1:
         with torch.no_grad():

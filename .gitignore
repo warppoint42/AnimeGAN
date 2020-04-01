@@ -2,6 +2,7 @@
 .ipynb_checkpoints/
 VGG19/*
 data
+dataset
 data/AnimeGAN_data/src_data/*
 data/AnimeGAN_data/target_datasets/*/*
 data/AnimeGAN_data/paired_targets/*/*
