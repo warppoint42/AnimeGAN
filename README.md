@@ -1,6 +1,6 @@
 # AnimeGAN
 
-Autumn 2019 Stanford CS236 project. An implementation of a GAN for video style transfer, with specific improvements for cartoon-like styles.
+Autumn 2019 Stanford CS236 project. An implementation of a GAN for video style transfer, with specific improvements for cartoon-like styles. While the model runs on input data, it has never been run to completion, due to inability to reproduce baseline results with pytorch-CartoonGAN
 
 Before running the dataset processor or the baseline generator, ffmpeg must be installed, as well as the requirements from requirements.txt.
 
